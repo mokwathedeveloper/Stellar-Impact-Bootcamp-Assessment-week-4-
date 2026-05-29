@@ -1,0 +1,22 @@
+[package]
+name = "no-loss-auction"
+version = "0.1.0"
+edition = "2021"
+description = "A no-loss auction protocol built on Stellar Soroban"
+authors = ["mokwathedeveloper <moffatmokwa12@gmail.com>"]
+
+[lib]
+# cdylib produces the WASM contract binary; rlib allows Rust tests to import it
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+soroban-sdk = { version = "22.0.0", features = ["alloc"] }
+
+[dev-dependencies]
+soroban-sdk = { version = "22.0.0", features = ["testutils"] }
+# Token contract for test environment
+soroban-token-sdk = { version = "22.0.0" }
+
+[features]
+# Expose test utilities (e.g., mock token) when running cargo test
+testutils = ["soroban-sdk/testutils"]
