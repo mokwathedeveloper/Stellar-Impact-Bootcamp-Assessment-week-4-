@@ -1,0 +1,24 @@
+# Rust / Cargo build artifacts
+target/
+Cargo.lock
+
+# Soroban compiled WASM (kept in /target, not committed)
+*.wasm
+
+# Frontend build output
+frontend/dist/
+frontend/node_modules/
+
+# Environment files with secrets
+frontend/.env
+frontend/.env.local
+.env
+.env.local
+
+# OS / editor artifacts
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
