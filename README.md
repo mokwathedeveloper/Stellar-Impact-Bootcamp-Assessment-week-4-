@@ -11,12 +11,13 @@ winner is declared.
 
 | Field | Value |
 |---|---|
-| **Contract ID** | `REPLACE_WITH_YOUR_CONTRACT_ID_AFTER_DEPLOY` |
+| **Contract ID** | `CA2SXTCIJGNMQHC33EHTBF4KF3DW2EGA5GXFZMDTPHRGFWRWTEZ2RLWS` |
 | **Network** | Stellar Testnet |
-| **Explorer** | [stellar.expert/explorer/testnet/contract/…](https://stellar.expert/explorer/testnet) |
+| **Explorer** | [stellar.expert/explorer/testnet/contract/CA2SXTCIJGNMQHC33EHTBF4KF3DW2EGA5GXFZMDTPHRGFWRWTEZ2RLWS](https://stellar.expert/explorer/testnet/contract/CA2SXTCIJGNMQHC33EHTBF4KF3DW2EGA5GXFZMDTPHRGFWRWTEZ2RLWS) |
 | **RPC** | `https://soroban-testnet.stellar.org` |
 
-> After running `./deploy.sh` replace the Contract ID above and in `frontend/.env`.
+> Deployed by identity `moffat` (GDPTMWBY6RCDEOCQ2WHUG2V7WWCXXIP7T56E46DTF2WZ3MCY47AGZICR) on 2026-05-30.
+> Deployment tx: [abac00e…](https://stellar.expert/explorer/testnet/tx/abac00e60b54fa1238bb2a06231f6deeac4d8cdb924f786433e588450615696b)
 
 ---
 
