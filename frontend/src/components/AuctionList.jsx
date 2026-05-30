@@ -111,7 +111,12 @@ export default function AuctionList({ publicKey, refreshTrigger }) {
 
       {error && <div className="alert alert-error">{error}</div>}
 
-      {loading && <p className="loading-msg">Loading auctions from the blockchain…</p>}
+      {loading && (
+        <p className="loading-msg">
+          <span className="spinner" aria-hidden="true" />
+          Loading auctions from the blockchain…
+        </p>
+      )}
 
       {!loading && auctions.length === 0 && (
         <div className="empty-state">
