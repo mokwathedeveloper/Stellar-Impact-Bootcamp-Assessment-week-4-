@@ -1,40 +1,37 @@
 /**
  * stellar.js — Freighter wallet connection helpers
  *
- * Wraps the @stellar/freighter-api package with React-friendly async
- * utilities so components can request the user's public key without
- * duplicating wallet detection logic.
- *
- * NOTE on Freighter API v2 behaviour:
- *   isConnected() returns { isConnected: false } when the site has NOT yet
- *   been granted access — even if the extension IS installed.  It is therefore
- *   not a reliable "extension present" check.  We use setAllowed() as the
- *   gating call instead: it opens the Freighter popup when the extension is
- *   present, and throws / errors when it is absent.
+ * Freighter API v2 key facts:
+ *  - isConnected()   → true only if extension is installed AND site is already whitelisted
+ *  - isAllowed()     → true if this site was previously granted access
+ *  - setAllowed()    → legacy v1 API; does NOT open a popup in v2
+ *  - requestAccess() → v2 API: opens the Freighter permission popup and returns
+ *                      the public key when the user approves
+ *  - getPublicKey()  → returns key if already allowed, otherwise errors
  */
 
 import {
   isConnected,
-  getPublicKey,
   isAllowed,
-  setAllowed,
+  requestAccess,
+  getPublicKey,
   getNetwork,
 } from "@stellar/freighter-api";
 
+// ──────────────────────────────────────────────────────────────────────────────
+
 /**
- * Attempt to detect whether Freighter is installed.
+ * Check whether the Freighter extension is present in the browser.
  *
- * Strategy: call isAllowed() (a lightweight read-only call).
- * - If it resolves (any value) → extension is present.
- * - If it throws              → extension is absent.
+ * Uses isConnected() — if the call resolves (any value, including false)
+ * the extension is installed.  If it throws, the extension is absent.
  *
- * isConnected() is intentionally NOT used here because in Freighter API v2
- * it returns { isConnected: false } on first visit (site not yet whitelisted),
- * which is indistinguishable from the extension being absent.
+ * We do NOT check result.isConnected here because that is false on first
+ * visit (site not yet whitelisted) even when the extension IS installed.
  */
 export async function isFreighterInstalled() {
   try {
-    await isAllowed();   // resolves to { isAllowed: boolean } when extension exists
+    await isConnected(); // resolves if extension exists, throws if absent
     return true;
   } catch {
     return false;
@@ -42,65 +39,78 @@ export async function isFreighterInstalled() {
 }
 
 /**
- * Request permission to read the user's Stellar public key.
+ * Connect the Freighter wallet and return the active public key.
  *
  * Flow:
- *  1. Try isAllowed() — if it throws the extension is absent.
- *  2. If not yet allowed, call setAllowed() to open the Freighter popup.
- *  3. Retrieve and return the active account's public key.
+ *  1. If already allowed  → call getPublicKey() directly (no popup).
+ *  2. If not yet allowed  → call requestAccess() which opens the
+ *     Freighter permission popup and returns the key on approval.
+ *
+ * requestAccess() is the correct Freighter API v2 method for step 2.
+ * setAllowed() is a legacy v1 call that no longer opens a popup.
  *
  * @throws {Error} Extension not installed, user rejected, or key unavailable.
  * @returns {Promise<string>} Stellar public key (G…)
  */
 export async function connectWallet() {
-  // ── Step 1: detect extension ──────────────────────────────────────────────
-  let alreadyAllowed = false;
-  try {
-    const result = await isAllowed();
-    alreadyAllowed = result.isAllowed;
-  } catch {
-    // isAllowed() threw — extension is genuinely not installed
+  // ── 1. Confirm extension is present ──────────────────────────────────────
+  const installed = await isFreighterInstalled();
+  if (!installed) {
     throw new Error(
       "Freighter wallet is not installed. " +
         "Please install it from https://www.freighter.app/ and refresh."
     );
   }
 
-  // ── Step 2: request site access if not yet granted ────────────────────────
-  if (!alreadyAllowed) {
-    let setResult;
-    try {
-      setResult = await setAllowed();
-    } catch {
-      throw new Error(
-        "Freighter wallet is not installed. " +
-          "Please install it from https://www.freighter.app/ and refresh."
-      );
-    }
-    if (!setResult.isAllowed) {
-      throw new Error(
-        "Access denied. Please click 'Connect' in the Freighter popup and try again."
-      );
-    }
-  }
-
-  // ── Step 3: retrieve the active public key ────────────────────────────────
-  let keyResult;
+  // ── 2. Check if site is already whitelisted ───────────────────────────────
+  let alreadyAllowed = false;
   try {
-    keyResult = await getPublicKey();
+    const result = await isAllowed();
+    alreadyAllowed = result.isAllowed;
   } catch {
-    throw new Error("Could not retrieve public key from Freighter.");
+    alreadyAllowed = false;
   }
 
-  if (keyResult.error) {
-    throw new Error(`Could not retrieve public key: ${keyResult.error}`);
+  // ── 3a. Site already allowed — get key silently ───────────────────────────
+  if (alreadyAllowed) {
+    let keyResult;
+    try {
+      keyResult = await getPublicKey();
+    } catch (err) {
+      throw new Error("Could not retrieve public key from Freighter. Make sure the wallet is unlocked.");
+    }
+    if (keyResult.error) {
+      throw new Error(`Could not retrieve public key: ${keyResult.error}`);
+    }
+    return keyResult.publicKey;
   }
 
-  return keyResult.publicKey;
+  // ── 3b. Site not yet allowed — open the permission popup ─────────────────
+  // requestAccess() is the Freighter v2 method that shows the popup and
+  // returns { publicKey } on approval or { error } on rejection.
+  let accessResult;
+  try {
+    accessResult = await requestAccess();
+  } catch (err) {
+    throw new Error(
+      "Could not open Freighter. Make sure the extension is unlocked and try again."
+    );
+  }
+
+  if (accessResult.error) {
+    // User clicked Reject in the Freighter popup
+    throw new Error("Access rejected. Please approve the connection in Freighter and try again.");
+  }
+
+  if (!accessResult.publicKey) {
+    throw new Error("No public key returned. Make sure Freighter is unlocked and try again.");
+  }
+
+  return accessResult.publicKey;
 }
 
 /**
- * Return the currently connected public key without prompting, or null.
+ * Return the currently allowed public key without prompting, or null.
  * Safe to call on page load — never throws.
  *
  * @returns {Promise<string|null>}
@@ -117,8 +127,8 @@ export async function getConnectedPublicKey() {
 }
 
 /**
- * Verify the user's wallet is pointed at Testnet.
- * Returns false on any error (non-blocking check).
+ * Verify the wallet is pointed at Stellar Testnet.
+ * Returns false on any error (non-blocking).
  *
  * @returns {Promise<boolean>}
  */

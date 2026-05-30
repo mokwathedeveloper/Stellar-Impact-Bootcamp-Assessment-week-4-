@@ -11,8 +11,10 @@ import WalletConnect from "../components/WalletConnect";
 
 // ── Mock stellar utils ────────────────────────────────────────────────────────
 vi.mock("../utils/stellar", () => ({
-  connectWallet: vi.fn(),
-  assertTestnet: vi.fn(),
+  connectWallet:        vi.fn(),
+  assertTestnet:        vi.fn(),
+  isFreighterInstalled: vi.fn().mockResolvedValue(true),
+  getConnectedPublicKey: vi.fn().mockResolvedValue(null),
   shortenKey: (key, chars = 6) =>
     key ? `${key.slice(0, chars)}…${key.slice(-chars)}` : key,
 }));
