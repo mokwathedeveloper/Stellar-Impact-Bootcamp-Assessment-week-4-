@@ -440,6 +440,32 @@ a:hover { text-decoration: underline; }
   color: var(--text-muted);
   font-weight: 400;
   line-height: 1.4;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+/* Clickable address chip inside form hints */
+.hint-address {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--teal);
+  background: rgba(20, 184, 166, 0.08);
+  border: 1px solid rgba(20, 184, 166, 0.35);
+  border-radius: var(--radius-xs);
+  padding: 1px 6px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  word-break: break-all;
+  white-space: normal;
+  text-align: left;
+}
+
+.hint-address:hover {
+  background: rgba(20, 184, 166, 0.18);
+  border-color: var(--teal);
+  color: var(--teal);
 }
 
 /* ── Alerts ─────────────────────────────────────────────────── */

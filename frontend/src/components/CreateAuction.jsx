@@ -104,8 +104,20 @@ export default function CreateAuction({ publicKey, onAuctionCreated }) {
             required
           />
           <span className="form-hint">
-            The Stellar testnet XLM asset contract:
-            CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC
+            Testnet XLM token:{" "}
+            <button
+              type="button"
+              className="hint-address"
+              title="Click to autofill"
+              onClick={() =>
+                setForm((p) => ({
+                  ...p,
+                  token: "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+                }))
+              }
+            >
+              CDLZFC3…HHGCYSC
+            </button>
           </span>
         </label>
 
