@@ -35,6 +35,8 @@ import {
   scValToNative,
   nativeToScVal,
   Address,
+  Keypair,
+  Account,
 } from "@stellar/stellar-sdk";
 
 // In SDK v13 the RPC utilities live at "@stellar/stellar-sdk/rpc"
@@ -142,18 +144,9 @@ export async function queryContract(buildOp) {
   const server = getServer();
   const contract = getContract();
 
-  // Use a zero-balance account for view calls; Soroban simulation only needs a valid key
-  const ZERO_KEY = "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN";
-
-  // getAccount might fail for unfunded accounts; build a synthetic AccountResponse
-  let account;
-  try {
-    account = await server.getAccount(ZERO_KEY);
-  } catch {
-    // Construct a minimal account object for simulation
-    const { Account } = await import("@stellar/stellar-sdk");
-    account = new Account(ZERO_KEY, "0");
-  }
+  // Soroban simulation does not require a funded account — generate a fresh
+  // random keypair so the Account constructor always receives a valid key.
+  const account = new Account(Keypair.random().publicKey(), "0");
 
   const operation = buildOp(contract);
   const tx = new TransactionBuilder(account, {
