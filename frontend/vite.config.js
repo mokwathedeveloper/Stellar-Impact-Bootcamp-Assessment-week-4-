@@ -4,11 +4,21 @@ import react from "@vitejs/plugin-react";
 export default defineConfig({
   plugins: [react()],
   define: {
-    // Required by some Stellar SDK internals that reference global
     global: "globalThis",
   },
   build: {
-    // Suppress the large-chunk warning (Stellar SDK is inherently large)
     chunkSizeWarningLimit: 1600,
+  },
+  test: {
+    // Vitest config — uses jsdom to simulate a browser environment
+    environment: "jsdom",
+    globals: true,
+    setupFiles: ["./src/test/setup.js"],
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "lcov"],
+      include: ["src/**/*.{js,jsx}"],
+      exclude: ["src/test/**", "src/main.jsx"],
+    },
   },
 });
