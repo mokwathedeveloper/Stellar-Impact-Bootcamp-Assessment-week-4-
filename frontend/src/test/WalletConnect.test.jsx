@@ -80,7 +80,9 @@ describe("WalletConnect — connect flow", () => {
   });
 
   it("displays an error message when connectWallet rejects", async () => {
-    connectWallet.mockRejectedValue(new Error("Freighter wallet is not installed."));
+    connectWallet.mockRejectedValue(
+      new Error("Freighter wallet is not installed. Please install it from https://www.freighter.app/ and refresh.")
+    );
 
     render(<WalletConnect publicKey={null} onConnect={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: /connect freighter wallet/i }));
