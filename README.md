@@ -11,9 +11,10 @@ winner is declared.
 
 | Field | Value |
 |---|---|
+| **Live Frontend** | [no-loss-auction.vercel.app](https://no-loss-auction.vercel.app) |
 | **Contract ID** | `CA2SXTCIJGNMQHC33EHTBF4KF3DW2EGA5GXFZMDTPHRGFWRWTEZ2RLWS` |
 | **Network** | Stellar Testnet |
-| **Explorer** | [stellar.expert/explorer/testnet/contract/CA2SXTCIJGNMQHC33EHTBF4KF3DW2EGA5GXFZMDTPHRGFWRWTEZ2RLWS](https://stellar.expert/explorer/testnet/contract/CA2SXTCIJGNMQHC33EHTBF4KF3DW2EGA5GXFZMDTPHRGFWRWTEZ2RLWS) |
+| **Explorer** | [stellar.expert/explorer/testnet/contract/CA2SXT…](https://stellar.expert/explorer/testnet/contract/CA2SXTCIJGNMQHC33EHTBF4KF3DW2EGA5GXFZMDTPHRGFWRWTEZ2RLWS) |
 | **RPC** | `https://soroban-testnet.stellar.org` |
 
 > Deployed by identity `moffat` (GDPTMWBY6RCDEOCQ2WHUG2V7WWCXXIP7T56E46DTF2WZ3MCY47AGZICR) on 2026-05-30.
