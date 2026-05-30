@@ -12,7 +12,7 @@
 /** @type {string} Soroban contract ID returned by `stellar contract deploy` */
 export const CONTRACT_ID =
   import.meta.env.VITE_CONTRACT_ID ||
-  "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM"; // placeholder
+  "CA2SXTCIJGNMQHC33EHTBF4KF3DW2EGA5GXFZMDTPHRGFWRWTEZ2RLWS";
 
 /** Stellar network passphrase */
 export const NETWORK_PASSPHRASE =
@@ -24,10 +24,11 @@ export const RPC_URL =
   import.meta.env.VITE_RPC_URL || "https://soroban-testnet.stellar.org";
 
 // ──────────────────────────────────────────────────────────────────────────
+// SDK imports — @stellar/stellar-sdk v13 moved RPC to a separate submodule
+// ──────────────────────────────────────────────────────────────────────────
 
 import {
   Contract,
-  SorobanRpc,
   TransactionBuilder,
   BASE_FEE,
   xdr,
@@ -36,14 +37,33 @@ import {
   Address,
 } from "@stellar/stellar-sdk";
 
-/** Soroban RPC server instance */
-export const server = new SorobanRpc.Server(RPC_URL, { allowHttp: false });
-
-/** Shared contract instance */
-export const auctionContract = new Contract(CONTRACT_ID);
+// In SDK v13 the RPC utilities live at "@stellar/stellar-sdk/rpc"
+import {
+  Server,
+  Api as RpcApi,
+  assembleTransaction,
+} from "@stellar/stellar-sdk/rpc";
 
 // ──────────────────────────────────────────────────────────────────────────
-//  Low-level helpers
+//  Lazy singletons — created on first use so module-level errors can't
+//  crash the whole page during initial React render.
+// ──────────────────────────────────────────────────────────────────────────
+
+let _server = null;
+let _contract = null;
+
+function getServer() {
+  if (!_server) _server = new Server(RPC_URL);
+  return _server;
+}
+
+function getContract() {
+  if (!_contract) _contract = new Contract(CONTRACT_ID);
+  return _contract;
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+//  Core invocation helpers
 // ──────────────────────────────────────────────────────────────────────────
 
 /**
@@ -54,11 +74,14 @@ export const auctionContract = new Contract(CONTRACT_ID);
  * @returns {Promise<any>}    - Decoded return value of the contract call
  */
 export async function invokeContract(publicKey, buildOp) {
+  const server = getServer();
+  const contract = getContract();
+
   // 1. Load the account sequence number from the network
   const account = await server.getAccount(publicKey);
 
   // 2. Build the transaction with the Soroban operation
-  const operation = buildOp(auctionContract);
+  const operation = buildOp(contract);
   let tx = new TransactionBuilder(account, {
     fee: BASE_FEE,
     networkPassphrase: NETWORK_PASSPHRASE,
@@ -69,14 +92,14 @@ export async function invokeContract(publicKey, buildOp) {
 
   // 3. Simulate to get resource footprint and fee estimates
   const simResult = await server.simulateTransaction(tx);
-  if (SorobanRpc.Api.isSimulationError(simResult)) {
+  if (RpcApi.isSimulationError(simResult)) {
     throw new Error(`Simulation failed: ${simResult.error}`);
   }
 
   // 4. Assemble the transaction with correct soroban data / auth entries
-  const preparedTx = SorobanRpc.assembleTransaction(tx, simResult).build();
+  const preparedTx = assembleTransaction(tx, simResult).build();
 
-  // 5. Sign with Freighter wallet
+  // 5. Sign with Freighter wallet (imported here to avoid SSR issues)
   const { signTransaction } = await import("@stellar/freighter-api");
   const signedXdr = await signTransaction(preparedTx.toXDR(), {
     network: "TESTNET",
@@ -97,9 +120,9 @@ export async function invokeContract(publicKey, buildOp) {
   do {
     await new Promise((r) => setTimeout(r, 2000));
     getResult = await server.getTransaction(sendResult.hash);
-  } while (getResult.status === SorobanRpc.Api.GetTransactionStatus.NOT_FOUND);
+  } while (getResult.status === RpcApi.GetTransactionStatus.NOT_FOUND);
 
-  if (getResult.status === SorobanRpc.Api.GetTransactionStatus.FAILED) {
+  if (getResult.status === RpcApi.GetTransactionStatus.FAILED) {
     throw new Error(`Transaction failed: ${getResult.resultXdr}`);
   }
 
@@ -116,15 +139,23 @@ export async function invokeContract(publicKey, buildOp) {
  * @returns {Promise<any>}   - Decoded return value
  */
 export async function queryContract(buildOp) {
-  // Use the zero-address account for view calls (no real account needed)
-  const ZERO_KEY = "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN";
-  const account = await server.getAccount(ZERO_KEY).catch(() => ({
-    accountId: () => ZERO_KEY,
-    sequenceNumber: () => "0",
-    incrementSequenceNumber: () => {},
-  }));
+  const server = getServer();
+  const contract = getContract();
 
-  const operation = buildOp(auctionContract);
+  // Use a zero-balance account for view calls; Soroban simulation only needs a valid key
+  const ZERO_KEY = "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN";
+
+  // getAccount might fail for unfunded accounts; build a synthetic AccountResponse
+  let account;
+  try {
+    account = await server.getAccount(ZERO_KEY);
+  } catch {
+    // Construct a minimal account object for simulation
+    const { Account } = await import("@stellar/stellar-sdk");
+    account = new Account(ZERO_KEY, "0");
+  }
+
+  const operation = buildOp(contract);
   const tx = new TransactionBuilder(account, {
     fee: BASE_FEE,
     networkPassphrase: NETWORK_PASSPHRASE,
@@ -134,8 +165,8 @@ export async function queryContract(buildOp) {
     .build();
 
   const simResult = await server.simulateTransaction(tx);
-  if (SorobanRpc.Api.isSimulationError(simResult)) {
-    throw new Error(`Query failed: ${simResult.error}`);
+  if (RpcApi.isSimulationError(simResult)) {
+    throw new Error(`Query simulation failed: ${simResult.error}`);
   }
 
   return scValToNative(simResult.result.retval);
@@ -145,23 +176,7 @@ export async function queryContract(buildOp) {
 //  Contract method wrappers
 // ──────────────────────────────────────────────────────────────────────────
 
-/**
- * Create a new auction.
- *
- * @param {string} publicKey    - Caller / future owner public key
- * @param {string} description  - Item description
- * @param {string} tokenAddress - SEP-41 token contract ID
- * @param {bigint} startingBid  - Minimum bid in token's smallest unit
- * @param {bigint} deadline     - Unix timestamp (seconds)
- * @returns {Promise<bigint>}   - New auction ID
- */
-export async function createAuction(
-  publicKey,
-  description,
-  tokenAddress,
-  startingBid,
-  deadline
-) {
+export async function createAuction(publicKey, description, tokenAddress, startingBid, deadline) {
   return invokeContract(publicKey, (contract) =>
     contract.call(
       "create_auction",
@@ -174,13 +189,6 @@ export async function createAuction(
   );
 }
 
-/**
- * Place a bid on an existing auction.
- *
- * @param {string} publicKey  - Bidder's public key
- * @param {bigint} auctionId  - Target auction ID
- * @param {bigint} amount     - Bid amount in token's smallest unit
- */
 export async function placeBid(publicKey, auctionId, amount) {
   return invokeContract(publicKey, (contract) =>
     contract.call(
@@ -192,12 +200,6 @@ export async function placeBid(publicKey, auctionId, amount) {
   );
 }
 
-/**
- * Claim a pending refund for a previously outbid participant.
- *
- * @param {string} publicKey  - Bidder's public key (must have a pending refund)
- * @param {bigint} auctionId  - Auction ID to claim from
- */
 export async function claimRefund(publicKey, auctionId) {
   return invokeContract(publicKey, (contract) =>
     contract.call(
@@ -208,12 +210,6 @@ export async function claimRefund(publicKey, auctionId) {
   );
 }
 
-/**
- * Finalize the auction after its deadline — anyone can call this.
- *
- * @param {string} publicKey  - Submitter public key (pays gas)
- * @param {bigint} auctionId  - Auction ID to finalize
- */
 export async function finalizeAuction(publicKey, auctionId) {
   return invokeContract(publicKey, (contract) =>
     contract.call(
@@ -223,12 +219,6 @@ export async function finalizeAuction(publicKey, auctionId) {
   );
 }
 
-/**
- * Cancel an auction that has received no bids (owner only).
- *
- * @param {string} publicKey  - Auction owner's public key
- * @param {bigint} auctionId  - Auction ID to cancel
- */
 export async function cancelAuction(publicKey, auctionId) {
   return invokeContract(publicKey, (contract) =>
     contract.call(
@@ -239,25 +229,12 @@ export async function cancelAuction(publicKey, auctionId) {
   );
 }
 
-/**
- * Fetch full auction data (read-only).
- *
- * @param {bigint} auctionId - Auction ID to fetch
- * @returns {Promise<object>} Decoded auction object
- */
 export async function getAuction(auctionId) {
   return queryContract((contract) =>
     contract.call("get_auction", nativeToScVal(auctionId, { type: "u64" }))
   );
 }
 
-/**
- * Fetch pending refund amount for a bidder (read-only).
- *
- * @param {bigint} auctionId  - Auction ID
- * @param {string} bidder     - Bidder's public key
- * @returns {Promise<bigint>} Refund amount in token's smallest unit
- */
 export async function getRefund(auctionId, bidder) {
   return queryContract((contract) =>
     contract.call(
@@ -268,11 +245,6 @@ export async function getRefund(auctionId, bidder) {
   );
 }
 
-/**
- * Fetch the total number of auctions ever created (read-only).
- *
- * @returns {Promise<bigint>}
- */
 export async function getAuctionCount() {
   return queryContract((contract) => contract.call("get_auction_count"));
 }
@@ -281,17 +253,20 @@ export async function getAuctionCount() {
 //  Formatting helpers used by UI components
 // ──────────────────────────────────────────────────────────────────────────
 
-/** Convert raw token units (1 XLM = 10_000_000 stroops) to a display string. */
+/** Convert raw token units to display string (7 decimal places = XLM stroops). */
 export function formatTokenAmount(raw, decimals = 7) {
+  if (raw === null || raw === undefined) return "0";
+  const bigRaw = BigInt(raw);
   const divisor = BigInt(10 ** decimals);
-  const whole = raw / divisor;
-  const frac = raw % divisor;
-  return `${whole}.${frac.toString().padStart(decimals, "0").replace(/0+$/, "") || "0"}`;
+  const whole = bigRaw / divisor;
+  const frac = bigRaw % divisor;
+  const fracStr = frac.toString().padStart(decimals, "0").replace(/0+$/, "") || "0";
+  return `${whole}.${fracStr}`;
 }
 
-/** Convert a display amount (e.g. "10.5") to raw token units. */
+/** Convert a display amount string (e.g. "10.5") to raw token units. */
 export function parseTokenAmount(display, decimals = 7) {
-  const [whole = "0", frac = ""] = display.split(".");
+  const [whole = "0", frac = ""] = String(display).split(".");
   const fracPadded = frac.padEnd(decimals, "0").slice(0, decimals);
   return BigInt(whole) * BigInt(10 ** decimals) + BigInt(fracPadded);
 }

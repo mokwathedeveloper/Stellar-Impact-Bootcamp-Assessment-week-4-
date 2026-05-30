@@ -3,16 +3,12 @@ import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   plugins: [react()],
-  // Ensure Buffer is available for Stellar SDK usage in the browser
   define: {
+    // Required by some Stellar SDK internals that reference global
     global: "globalThis",
   },
-  resolve: {
-    alias: {
-      buffer: "buffer",
-    },
-  },
-  optimizeDeps: {
-    include: ["buffer"],
+  build: {
+    // Suppress the large-chunk warning (Stellar SDK is inherently large)
+    chunkSizeWarningLimit: 1600,
   },
 });
